@@ -75,7 +75,7 @@ func (rf *Raft) GetState() (int, bool) {
 	// Your code here (2A).
 
 	// START CODE
-	currentPersist := rf.persist.ReadRaftState()
+	currentPersist := rf.persister.ReadRaftState()
 	currentPersistJson := json.Marshal(currentPersist)
 
 	term = currentPersistJson.currentTerm
@@ -157,7 +157,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	if reply == nil {
 		myReply := &RequestVoteReply{}
 
-		currentPersist := rf.persist.ReadRaftState()
+		currentPersist := rf.persister.ReadRaftState()
 		currentPersistJson := json.Marshal(currentPersist)
 
 		myReply.Term = currentPersistJson.currentTerm
@@ -165,7 +165,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 		if currentPersistJson.votedFor == nil {
 			currentPersistJson.votedFor = args.CandidateId
-			rf.persist.SaveRaftState(currentPersistJson)
+			rf.persister.SaveRaftState(currentPersistJson)
 		}
 
 		rf.sendRequestVote(args.CandidateId, nil, myReply)
