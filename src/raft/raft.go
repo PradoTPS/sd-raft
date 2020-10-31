@@ -75,11 +75,15 @@ func (rf *Raft) GetState() (int, bool) {
 	// Your code here (2A).
 
 	// START CODE
-	currentPersist := rf.persister.ReadRaftState()
-	currentPersistJson := json.Marshal(currentPersist)
+	currentPersistByte := rf.persister.ReadRaftState()
+	var currentPersistObj *persistState
+	err := json.Unmarshal(currentPersistByte, &currentPersistObj)
+	if err != nil {
+		fmt.Println("error:", err)
+	}
 
-	term = currentPersistJson.currentTerm
-	isleader = (currentPersistJson.votedFor == rf.me)
+	term = currentPersistObj.currentTerm
+	isleader = (currentPersistObj.votedFor == rf.me)
 	// FINISH CODE
 
 	return term, isleader
@@ -157,15 +161,20 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	if reply == nil {
 		myReply := &RequestVoteReply{}
 
-		currentPersist := rf.persister.ReadRaftState()
-		currentPersistJson := json.Marshal(currentPersist)
+		currentPersistByte := rf.persister.ReadRaftState()
+		var currentPersistObj *persistState
+		err := json.Unmarshal(currentPersistByte, &currentPersistObj)
+		if err != nil {
+			fmt.Println("error:", err)
+		}
 
-		myReply.Term = currentPersistJson.currentTerm
-		myReply.VoteGranted = (currentPersistJson.votedFor == nil)
+		myReply.Term = currentPersistObj.currentTerm
+		myReply.VoteGranted = (currentPersistObj.votedFor == nil)
 
-		if currentPersistJson.votedFor == nil {
-			currentPersistJson.votedFor = args.CandidateId
-			rf.persister.SaveRaftState(currentPersistJson)
+		if currentPersistObj.votedFor == nil {
+			currentPersistObj.votedFor = args.CandidateId
+			currentPersistByte, err = json.Marshal(currentPersistObj)
+			rf.persister.SaveRaftState(currentPersistByte)
 		}
 
 		rf.sendRequestVote(args.CandidateId, nil, myReply)
