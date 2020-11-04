@@ -20,7 +20,6 @@ package raft
 import "sync"
 import "labrpc"
 import "fmt"
-import "encoding/json"
 import "time"
 import "math/rand"
 
@@ -73,15 +72,8 @@ func (rf *Raft) GetState() (int, bool) {
 	// Your code here (2A).
 
 	// START CODE
-	currentPersistByte := rf.persister.ReadRaftState()
-	var currentPersistObj *persistState
-	err := json.Unmarshal(currentPersistByte, &currentPersistObj)
-	if err != nil {
-		fmt.Println("error:", err)
-	}
-
-	term = currentPersistObj.currentTerm
-	isleader = (currentPersistObj.votedFor == rf.me)
+	term = rf.currentTerm
+	isleader = (rf.votedFor == rf.me)
 	// FINISH CODE
 
 	return term, isleader
@@ -168,20 +160,12 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	if reply == nil {
 		myReply := &RequestVoteReply{}
 
-		currentPersistByte := rf.persister.ReadRaftState()
-		var currentPersistObj *persistState
-		err := json.Unmarshal(currentPersistByte, &currentPersistObj)
-		if err != nil {
-			fmt.Println("error:", err)
-		}
+		myReply.Term = rf.currentTerm
+		myReply.VoteGranted = (rf.votedFor == nil)
 
-		myReply.Term = currentPersistObj.currentTerm
-		myReply.VoteGranted = (currentPersistObj.votedFor == nil)
-
-		if currentPersistObj.votedFor == nil {
-			currentPersistObj.votedFor = args.CandidateId
-			currentPersistByte, err = json.Marshal(currentPersistObj)
-			rf.persister.SaveRaftState(currentPersistByte)
+		if rf.votedFor == nil {
+			rf.votedFor = args.CandidateId
+			rf.persist()
 		}
 
 		rf.sendRequestVote(args.CandidateId, nil, myReply)
