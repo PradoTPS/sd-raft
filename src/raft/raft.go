@@ -24,8 +24,8 @@ import "encoding/json"
 import "time"
 import "math/rand"
 
-// import "bytes"
-// import "encoding/gob"
+import "bytes"
+import "encoding/gob"
 
 //
 // as each Raft peer becomes aware that successive log entries are
@@ -53,17 +53,15 @@ type Raft struct {
 	lastApplied int
 	nextIndex   []int
 	matchIndex  []int
+
+	currentTerm int
+	votedFor    int
+	log         []string
 	// FINISH CODE
 
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
-}
-
-type persistState struct {
-	currentTerm int
-	votedFor    int
-	log         []string
 }
 
 // return currentTerm and whether this server
@@ -103,6 +101,15 @@ func (rf *Raft) persist() {
 	// e.Encode(rf.yyy)
 	// data := w.Bytes()
 	// rf.persister.SaveRaftState(data)
+
+	// START CODE
+	buf := new(bytes.Buffer)
+	enc := gob.NewEncoder(buf)
+	enc.Encode(rf.currentTerm)
+	enc.Encode(rf.votedFor)
+	enc.Encode(rf.log)
+	rf.persister.SaveRaftState(buf.Bytes())
+	// FINISH CODE
 }
 
 //
