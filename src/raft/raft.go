@@ -161,9 +161,9 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		myReply := &RequestVoteReply{}
 
 		myReply.Term = rf.currentTerm
-		myReply.VoteGranted = (rf.votedFor == nil)
+		myReply.VoteGranted = (rf.votedFor == -1)
 
-		if rf.votedFor == nil {
+		if rf.votedFor == -1 {
 			rf.votedFor = args.CandidateId
 			rf.persist()
 		}
@@ -228,6 +228,7 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	index := -1
 	term := -1
+	votedFor := -1
 	isLeader := true
 
 	// Your code here (2B).
