@@ -298,7 +298,7 @@ func (rf *Raft) AppendEntries() {
 
 // START CODE
 func (rf *Raft) sendAppendEntries() {
-	for server := 0; i < len(rf.peers); server++ {
+	for server := 0; server < len(rf.peers); server++ {
 		rf.peers[server].Call("Raft.AppendEntries")
 	}
 }
