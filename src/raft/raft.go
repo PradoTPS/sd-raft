@@ -47,7 +47,6 @@ type Raft struct {
 	persister         *Persister          // Object to hold this peer's persisted state
 	me                int                 // this peer's index into peers[]
 
-	// START CODE
 	commitIndex       int
 	lastApplied       int
 	nextIndex         []int
@@ -60,11 +59,118 @@ type Raft struct {
 	state             string
 	votesForMe        int
 	receivedHeartbeat bool
-	// FINISH CODE
 
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
+}
+
+//
+// example RequestVote RPC arguments structure.
+// field names must start with capital letters!
+//
+type RequestVoteArgs struct {
+	// Your data here (2A).
+	Term int
+	CandidateId int
+	LastLogIndex int
+	LastLogTerm int
+}
+
+//
+// example RequestVote RPC reply structure.
+// field names must start with capital letters!
+//
+type RequestVoteReply struct {
+	// Your data here (2A).
+	Err string
+}
+
+type ResponseVoteArgs struct {
+	Term int
+	VoteGranted bool
+}
+
+type ResponseVoteReply struct {
+	Err string
+}
+
+type HeartbeatArgs struct {
+	Term int
+	Used bool
+}
+
+type HeartbeatReply struct {
+	Err string
+}
+
+//
+// the service or tester wants to create a Raft server. the ports
+// of all the Raft servers (including this one) are in peers[]. this
+// server's port is peers[me]. all the servers' peers[] arrays
+// have the same order. persister is a place for this server to
+// save its persistent state, and also initially holds the most
+// recent saved state, if any. applyCh is a channel on which the
+// tester or service expects Raft to send ApplyMsg messages.
+// Make() must return quickly, so it should start goroutines
+// for any long-running work.
+//
+func Make(peers []*labrpc.ClientEnd, me int, persister *Persister, applyCh chan ApplyMsg) *Raft {
+	rf := &Raft{}
+	rf.peers = peers
+	rf.persister = persister
+	rf.me = me
+
+	fmt.Println("Created", me)
+
+	// Your initialization code here (2A, 2B, 2C).
+
+	rf.commitIndex = 0
+	rf.lastApplied = 0
+	rf.state = "follower"
+	rf.votesForMe = 0
+	rf.votedFor = -1
+	rf.receivedHeartbeat = false
+
+	// initialize from state persisted before a crash
+	rf.readPersist(persister.ReadRaftState())
+
+	go rf.waitHeartbeat()
+
+	return rf
+}
+
+//
+// the service using Raft (e.g. a k/v server) wants to start
+// agreement on the next command to be appended to Raft's log. if this
+// server isn't the leader, returns false. otherwise start the
+// agreement and return immediately. there is no guarantee that this
+// command will ever be committed to the Raft log, since the leader
+// may fail or lose an election.
+//
+// the first return value is the index that the command will appear at
+// if it's ever committed. the second return value is the current
+// term. the third return value is true if this server believes it is
+// the leader.
+//
+func (rf *Raft) Start(command interface{}) (int, int, bool) {
+	index := -1
+	term := -1
+	isLeader := true
+
+	// Your code here (2B).
+
+	return index, term, isLeader
+}
+
+//
+// the tester calls Kill() when a Raft instance won't
+// be needed again. you are not required to do anything
+// in Kill(), but it might be convenient to (for example)
+// turn off debug output from this instance.
+//
+func (rf *Raft) Kill() {
+	// Your code here, if desired.
 }
 
 // return currentTerm and whether this server
@@ -75,98 +181,11 @@ func (rf *Raft) GetState() (int, bool) {
 	var isleader bool
 	// Your code here (2A).
 
-	// START CODE
 	term = rf.currentTerm
 	isleader = (rf.state == "leader")
-	// FINISH CODE
 
 	return term, isleader
 }
-
-//
-// save Raft's persistent state to stable storage,
-// where it can later be retrieved after a crash and restart.
-// see paper's Figure 2 for a description of what should be persistent.
-//
-func (rf *Raft) persist() {
-	// Your code here (2C).
-	// Example:
-	// w := new(bytes.Buffer)
-	// e := gob.NewEncoder(w)
-	// e.Encode(rf.xxx)
-	// e.Encode(rf.yyy)
-	// data := w.Bytes()
-	// rf.persister.SaveRaftState(data)
-
-	// START CODE
-	buf := new(bytes.Buffer)
-	enc := gob.NewEncoder(buf)
-	enc.Encode(rf.currentTerm)
-	enc.Encode(rf.votedFor)
-	enc.Encode(rf.log)
-	rf.persister.SaveRaftState(buf.Bytes())
-	// FINISH CODE
-}
-
-//
-// restore previously persisted state.
-//
-func (rf *Raft) readPersist(data []byte) {
-	// Your code here (2C).
-	// Example:
-	// r := bytes.NewBuffer(data)
-	// d := gob.NewDecoder(r)
-	// d.Decode(&rf.xxx)
-	// d.Decode(&rf.yyy)
-	if data == nil || len(data) < 1 { // bootstrap without any state?
-		return
-	}
-
-	r := bytes.NewBuffer(data)
-	d := gob.NewDecoder(r)
-	d.Decode(&rf.currentTerm)
-	d.Decode(&rf.votedFor)
-	d.Decode(&rf.log)
-	rf.persister.SaveRaftState(data)
-}
-
-//
-// example RequestVote RPC arguments structure.
-// field names must start with capital letters!
-//
-type RequestVoteArgs struct {
-	// Your data here (2A).
-
-	// START CODE
-	Term int
-	CandidateId int
-	LastLogIndex int
-	LastLogTerm int
-	// FINISH CODE
-}
-
-//
-// example RequestVote RPC reply structure.
-// field names must start with capital letters!
-//
-type RequestVoteReply struct {
-	// Your data here (2A).
-
-	// START CODE
-	Err string
-	// FINISH CODE
-}
-
-// START CODE
-type ResponseVoteArgs struct {
-	Term int
-	VoteGranted bool
-}
-
-type ResponseVoteReply struct {
-	Err string
-}
-//FINISH CODE
 
 //
 // example RequestVote RPC handler.
@@ -175,7 +194,6 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
 	fmt.Println(rf.me, "received request from", args.CandidateId)
 
-	// START CODE
 	responseArgs := &ResponseVoteArgs{}
 	responseReply := &ResponseVoteReply{}
 
@@ -189,10 +207,8 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	fmt.Println(rf.me, "sending reply with vote granted", responseArgs.VoteGranted)
 	rf.sendVoteResponse(args.CandidateId, responseArgs, responseReply)
-	// FINISH CODE
 }
 
-// START CODE
 func (rf *Raft) ReceiveVote(args *ResponseVoteArgs, reply *ResponseVoteReply) {
 	fmt.Println(rf.me, "received response with vote granted", args.VoteGranted)
 	if args.VoteGranted {
@@ -204,7 +220,16 @@ func (rf *Raft) ReceiveVote(args *ResponseVoteArgs, reply *ResponseVoteReply) {
 		rf.sendAppendEntries()
 	}
 }
-// FINISH CODE
+
+func (rf *Raft) AppendEntries(args *HeartbeatArgs, reply *HeartbeatReply) {
+	rf.receivedHeartbeat = true
+	rf.state = "follower"
+	rf.currentTerm = args.Term
+	rf.votedFor = -1
+	rf.votesForMe = 0
+
+	rf.persist()
+}
 
 //
 // example code to send a RequestVote RPC to a server.
@@ -240,150 +265,9 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 	return ok
 }
 
-// START CODE
 func (rf *Raft) sendVoteResponse(server int, args *ResponseVoteArgs, reply *ResponseVoteReply) bool {
 	ok := rf.peers[server].Call("Raft.ReceiveVote", args, reply)
 	return ok
-}
-// FINISH CODE
-
-//
-// the service using Raft (e.g. a k/v server) wants to start
-// agreement on the next command to be appended to Raft's log. if this
-// server isn't the leader, returns false. otherwise start the
-// agreement and return immediately. there is no guarantee that this
-// command will ever be committed to the Raft log, since the leader
-// may fail or lose an election.
-//
-// the first return value is the index that the command will appear at
-// if it's ever committed. the second return value is the current
-// term. the third return value is true if this server believes it is
-// the leader.
-//
-func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := -1
-	term := -1
-	isLeader := true
-
-	// Your code here (2B).
-
-	return index, term, isLeader
-}
-
-//
-// the tester calls Kill() when a Raft instance won't
-// be needed again. you are not required to do anything
-// in Kill(), but it might be convenient to (for example)
-// turn off debug output from this instance.
-//
-func (rf *Raft) Kill() {
-	// Your code here, if desired.
-}
-
-//
-// the service or tester wants to create a Raft server. the ports
-// of all the Raft servers (including this one) are in peers[]. this
-// server's port is peers[me]. all the servers' peers[] arrays
-// have the same order. persister is a place for this server to
-// save its persistent state, and also initially holds the most
-// recent saved state, if any. applyCh is a channel on which the
-// tester or service expects Raft to send ApplyMsg messages.
-// Make() must return quickly, so it should start goroutines
-// for any long-running work.
-//
-func Make(peers []*labrpc.ClientEnd, me int, persister *Persister, applyCh chan ApplyMsg) *Raft {
-	rf := &Raft{}
-	rf.peers = peers
-	rf.persister = persister
-	rf.me = me
-
-	fmt.Println("Created", me)
-
-	// Your initialization code here (2A, 2B, 2C).
-
-	// START CODE
-	rf.commitIndex = 0
-	rf.lastApplied = 0
-	rf.state = "follower"
-	rf.votesForMe = 0
-	rf.votedFor = -1
-	rf.receivedHeartbeat = false
-	// FINISH CODE
-
-	// initialize from state persisted before a crash
-	rf.readPersist(persister.ReadRaftState())
-
-	// START CODE
-	go rf.waitHeartbeat()
-	// FINISH CODE
-
-	return rf
-}
-
-// START CODE
-func (rf *Raft) waitHeartbeat() {
-	for true {
-		receivedHeartbeat := make(chan bool)
-
-		go func() {
-			for true {
-				if rf.receivedHeartbeat {
-					rf.receivedHeartbeat = false
-					break
-				}
-			}
-
-			receivedHeartbeat <- true
-		}()
-
-		select {
-			case <- receivedHeartbeat: 
-				// fmt.Println("Received heartbeat!")
-			case <- time.After(time.Duration((rand.Intn(600 - 400) + 400)) * time.Millisecond):
-				rf.startElection()
-		}
-	}
-}
-// FINISH CODE
-
-// START CODE
-func (rf *Raft) startElection() {
-	rf.state = "candidate"
-	rf.currentTerm++
-
-	rf.persist()
-
-	args := &RequestVoteArgs{}
-	reply := &RequestVoteReply{}
-
-	args.Term = rf.currentTerm
-	args.CandidateId = rf.me
-	args.LastLogIndex = len(rf.log)
-	args.LastLogTerm = 0 //TA ERRADO
-
-	for i := 0; i < len(rf.peers); i++ {
-		fmt.Println(rf.me, "send request to", i)
-		go rf.sendRequestVote(i, args, reply)
-	}
-}
-// FINISH CODE
-
-// START CODE
-type HeartbeatArgs struct {
-	Term int
-	Used bool
-}
-
-type HeartbeatReply struct {
-	Err string
-}
-
-func (rf *Raft) AppendEntries(args *HeartbeatArgs, reply *HeartbeatReply) {
-	rf.receivedHeartbeat = true
-	rf.state = "follower"
-	rf.currentTerm = args.Term
-
-	rf.persist()
 }
 
 func (rf *Raft) sendAppendEntries() {
@@ -402,4 +286,92 @@ func (rf *Raft) sendAppendEntries() {
 		time.Sleep(time.Duration(100) * time.Millisecond)
 	}
 }
-// FINISH CODE
+
+func (rf *Raft) waitHeartbeat() {
+	for true {
+		receivedHeartbeat := make(chan bool)
+
+		go func() {
+			for true {
+				if rf.receivedHeartbeat {
+					rf.receivedHeartbeat = false
+					break
+				}
+			}
+
+			receivedHeartbeat <- true
+		}()
+
+		select {
+			case <- receivedHeartbeat: 
+				fmt.Println(rf.me, "Received heartbeat!")
+			case <- time.After(time.Duration((rand.Intn(400 - 200) + 200)) * time.Millisecond):
+				rf.startElection()
+		}
+	}
+}
+
+func (rf *Raft) startElection() {
+	rf.state = "candidate"
+	rf.currentTerm++
+
+	rf.persist()
+
+	args := &RequestVoteArgs{}
+	reply := &RequestVoteReply{}
+
+	args.Term = rf.currentTerm
+	args.CandidateId = rf.me
+	args.LastLogIndex = len(rf.log)
+	args.LastLogTerm = 0 // MOCKED VALUE
+	
+	for i := 0; i < len(rf.peers); i++ {
+		fmt.Println(rf.me, "send request to", i)
+		go rf.sendRequestVote(i, args, reply)
+	}
+}
+
+//
+// save Raft's persistent state to stable storage,
+// where it can later be retrieved after a crash and restart.
+// see paper's Figure 2 for a description of what should be persistent.
+//
+func (rf *Raft) persist() {
+	// Your code here (2C).
+	// Example:
+	// w := new(bytes.Buffer)
+	// e := gob.NewEncoder(w)
+	// e.Encode(rf.xxx)
+	// e.Encode(rf.yyy)
+	// data := w.Bytes()
+	// rf.persister.SaveRaftState(data)
+
+	buf := new(bytes.Buffer)
+	enc := gob.NewEncoder(buf)
+	enc.Encode(rf.currentTerm)
+	enc.Encode(rf.votedFor)
+	enc.Encode(rf.log)
+	rf.persister.SaveRaftState(buf.Bytes())
+}
+
+//
+// restore previously persisted state.
+//
+func (rf *Raft) readPersist(data []byte) {
+	// Your code here (2C).
+	// Example:
+	// r := bytes.NewBuffer(data)
+	// d := gob.NewDecoder(r)
+	// d.Decode(&rf.xxx)
+	// d.Decode(&rf.yyy)
+	if data == nil || len(data) < 1 { // bootstrap without any state?
+		return
+	}
+
+	r := bytes.NewBuffer(data)
+	d := gob.NewDecoder(r)
+	d.Decode(&rf.currentTerm)
+	d.Decode(&rf.votedFor)
+	d.Decode(&rf.log)
+	rf.persister.SaveRaftState(data)
+}
