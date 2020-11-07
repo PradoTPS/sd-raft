@@ -142,7 +142,6 @@ type RequestVoteArgs struct {
 	CandidateId int
 	LastLogIndex int
 	LastLogTerm int
-	Used bool
 	// FINISH CODE
 }
 
@@ -154,49 +153,58 @@ type RequestVoteReply struct {
 	// Your data here (2A).
 
 	// START CODE
-	Term int
-	VoteGranted bool
+	Err string
 	// FINISH CODE
 }
+
+// START CODE
+type ResponseVoteArgs struct {
+	Term int
+	VoteGranted bool
+}
+
+type ResponseVoteReply struct {
+	Err string
+}
+//FINISH CODE
 
 //
 // example RequestVote RPC handler.
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
-	fmt.Println(rf.me, "received request (", args.Used,")")
+	fmt.Println(rf.me, "received request from", args.CandidateId)
 
 	// START CODE
-	if args.Used {
-		myReply := &RequestVoteReply{}
-		myArgs := &RequestVoteArgs{}
+	responseArgs := &ResponseVoteArgs{}
+	responseReply := &ResponseVoteReply{}
 
-		myArgs.Used = false
-		myReply.Term = rf.currentTerm
-		myReply.VoteGranted = (rf.votedFor == -1) && (args.Term >= rf.currentTerm)
+	responseArgs.Term = rf.currentTerm
+	responseArgs.VoteGranted = (rf.votedFor == -1) && (args.Term >= rf.currentTerm)
 
-		if myReply.VoteGranted {
-			rf.votedFor = args.CandidateId
-			rf.persist()
-		}
-
-		fmt.Println(rf.me, "sending reply with vote granted", myReply.VoteGranted)
-		rf.sendRequestVote(args.CandidateId, myArgs, myReply)
+	if responseArgs.VoteGranted {
+		rf.votedFor = args.CandidateId
+		rf.persist()
 	}
 
-	if !args.Used {
-		fmt.Println(rf.me, "received response with vote granted", reply.VoteGranted)
-		if reply.VoteGranted {
-			rf.votesForMe++
-		}
-
-		if rf.votesForMe > (len(rf.peers) / 2) {
-			rf.state = "leader"
-			rf.sendAppendEntries()
-		}
-	}
+	fmt.Println(rf.me, "sending reply with vote granted", responseArgs.VoteGranted)
+	rf.sendVoteResponse(args.CandidateId, responseArgs, responseReply)
 	// FINISH CODE
 }
+
+// START CODE
+func (rf *Raft) ReceiveVote(args *ResponseVoteArgs, reply *ResponseVoteReply) {
+	fmt.Println(rf.me, "received response with vote granted", args.VoteGranted)
+	if args.VoteGranted {
+		rf.votesForMe++
+	}
+
+	if rf.votesForMe > (len(rf.peers) / 2) {
+		rf.state = "leader"
+		rf.sendAppendEntries()
+	}
+}
+// FINISH CODE
 
 //
 // example code to send a RequestVote RPC to a server.
@@ -231,6 +239,13 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
 	return ok
 }
+
+// START CODE
+func (rf *Raft) sendVoteResponse(server int, args *ResponseVoteArgs, reply *ResponseVoteReply) bool {
+	ok := rf.peers[server].Call("Raft.ReceiveVote", args, reply)
+	return ok
+}
+// FINISH CODE
 
 //
 // the service using Raft (e.g. a k/v server) wants to start
@@ -323,7 +338,7 @@ func (rf *Raft) waitHeartbeat() {
 
 		select {
 			case <- receivedHeartbeat: 
-				fmt.Println("Received heartbeat!")
+				// fmt.Println("Received heartbeat!")
 			case <- time.After(time.Duration((rand.Intn(600 - 400) + 400)) * time.Millisecond):
 				rf.startElection()
 		}
@@ -339,13 +354,12 @@ func (rf *Raft) startElection() {
 	rf.persist()
 
 	args := &RequestVoteArgs{}
+	reply := &RequestVoteReply{}
+
 	args.Term = rf.currentTerm
 	args.CandidateId = rf.me
 	args.LastLogIndex = len(rf.log)
 	args.LastLogTerm = 0 //TA ERRADO
-	args.Used = true
-
-	reply := &RequestVoteReply{}
 
 	for i := 0; i < len(rf.peers); i++ {
 		fmt.Println(rf.me, "send request to", i)
@@ -361,17 +375,15 @@ type HeartbeatArgs struct {
 }
 
 type HeartbeatReply struct {
-	Term int
+	Err string
 }
 
 func (rf *Raft) AppendEntries(args *HeartbeatArgs, reply *HeartbeatReply) {
-	if args.Used {
-		rf.receivedHeartbeat = true
-		rf.state = "follower"
-		rf.currentTerm = args.Term
+	rf.receivedHeartbeat = true
+	rf.state = "follower"
+	rf.currentTerm = args.Term
 
-		rf.persist()
-	}
+	rf.persist()
 }
 
 func (rf *Raft) sendAppendEntries() {
@@ -380,7 +392,6 @@ func (rf *Raft) sendAppendEntries() {
 		reply := &HeartbeatReply{}
 
 		args.Term = rf.currentTerm
-		args.Used = true
 
 		for server := 0; server < len(rf.peers); server++ {
 			if server != rf.me {
