@@ -130,9 +130,6 @@ func (rf *Raft) readPersist(data []byte) {
 	rf.persister.SaveRaftState(data)
 }
 
-
-
-
 //
 // example RequestVote RPC arguments structure.
 // field names must start with capital letters!
@@ -159,7 +156,6 @@ type RequestVoteReply struct {
 	// START CODE
 	Term int
 	VoteGranted bool
-	// Used bool
 	// FINISH CODE
 }
 
@@ -169,7 +165,6 @@ type RequestVoteReply struct {
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
 	fmt.Println(rf.me, "received request (", args.Used,")")
-	// fmt.Println(reply)
 
 	// START CODE
 	if args.Used {
@@ -237,7 +232,6 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 	return ok
 }
 
-
 //
 // the service using Raft (e.g. a k/v server) wants to start
 // agreement on the next command to be appended to Raft's log. if this
@@ -288,7 +282,7 @@ func Make(peers []*labrpc.ClientEnd, me int, persister *Persister, applyCh chan 
 	rf.persister = persister
 	rf.me = me
 
-	fmt.Println("Created",me)
+	fmt.Println("Created", me)
 
 	// Your initialization code here (2A, 2B, 2C).
 
@@ -368,7 +362,6 @@ type HeartbeatArgs struct {
 
 type HeartbeatReply struct {
 	Term int
-	Used bool
 }
 
 func (rf *Raft) AppendEntries(args *HeartbeatArgs, reply *HeartbeatReply) {
@@ -385,6 +378,7 @@ func (rf *Raft) sendAppendEntries() {
 	for rf.state == "leader" {
 		args := &HeartbeatArgs{}
 		reply := &HeartbeatReply{}
+
 		args.Term = rf.currentTerm
 		args.Used = true
 
