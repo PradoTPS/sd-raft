@@ -224,13 +224,15 @@ func (rf *Raft) ReceiveVote(args *ResponseVoteArgs, reply *ResponseVoteReply) {
 }
 
 func (rf *Raft) AppendEntries(args *HeartbeatArgs, reply *HeartbeatReply) {
-	rf.receivedHeartbeat = true
-	rf.state = "follower"
-	rf.currentTerm = args.Term
-	rf.votedFor = -1
-	rf.votesForMe = 0
-
-	rf.persist()
+	if args.Term >= rf.currentTerm {
+		rf.receivedHeartbeat = true
+		rf.state = "follower"
+		rf.currentTerm = args.Term
+		rf.votedFor = -1
+		rf.votesForMe = 0
+	
+		rf.persist()
+	}
 }
 
 //
@@ -316,7 +318,7 @@ func (rf *Raft) waitHeartbeat() {
 func (rf *Raft) startElection() {
 	rf.state = "candidate"
 	rf.currentTerm++
-
+	rf.votesForMe = 0
 	rf.persist()
 
 	args := &RequestVoteArgs{}
