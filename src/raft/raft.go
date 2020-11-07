@@ -145,6 +145,7 @@ type RequestVoteArgs struct {
 	CandidateId int
 	LastLogIndex int
 	LastLogTerm int
+	Used bool
 	// FINISH CODE
 }
 
@@ -158,6 +159,7 @@ type RequestVoteReply struct {
 	// START CODE
 	Term int
 	VoteGranted bool
+	// Used bool
 	// FINISH CODE
 }
 
@@ -166,29 +168,36 @@ type RequestVoteReply struct {
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
+	fmt.Println(rf.me, "received request (", args.Used,")")
+	// fmt.Println(reply)
 
 	// START CODE
-	if reply == nil {
+	if args.Used {
 		myReply := &RequestVoteReply{}
+		myArgs := &RequestVoteArgs{}
 
+		myArgs.Used = false
 		myReply.Term = rf.currentTerm
 		myReply.VoteGranted = (rf.votedFor == -1) && (args.Term >= rf.currentTerm)
 
-		if (rf.votedFor == -1) && (args.Term >= rf.currentTerm) {
+		if myReply.VoteGranted {
 			rf.votedFor = args.CandidateId
 			rf.persist()
 		}
 
-		rf.sendRequestVote(args.CandidateId, nil, myReply)
+		fmt.Println(rf.me, "sending reply with vote granted", myReply.VoteGranted)
+		rf.sendRequestVote(args.CandidateId, myArgs, myReply)
 	}
 
-	if args == nil {
+	if !args.Used {
+		fmt.Println(rf.me, "received response with vote granted", reply.VoteGranted)
 		if reply.VoteGranted {
 			rf.votesForMe++
 		}
 
 		if rf.votesForMe > (len(rf.peers) / 2) {
 			rf.state = "leader"
+			rf.sendAppendEntries()
 		}
 	}
 	// FINISH CODE
@@ -279,6 +288,8 @@ func Make(peers []*labrpc.ClientEnd, me int, persister *Persister, applyCh chan 
 	rf.persister = persister
 	rf.me = me
 
+	fmt.Println("Created",me)
+
 	// Your initialization code here (2A, 2B, 2C).
 
 	// START CODE
@@ -286,6 +297,7 @@ func Make(peers []*labrpc.ClientEnd, me int, persister *Persister, applyCh chan 
 	rf.lastApplied = 0
 	rf.state = "follower"
 	rf.votesForMe = 0
+	rf.votedFor = -1
 	rf.receivedHeartbeat = false
 	// FINISH CODE
 
@@ -293,14 +305,14 @@ func Make(peers []*labrpc.ClientEnd, me int, persister *Persister, applyCh chan 
 	rf.readPersist(persister.ReadRaftState())
 
 	// START CODE
-	go waitHeartbeat(rf)
+	go rf.waitHeartbeat()
 	// FINISH CODE
 
 	return rf
 }
 
 // START CODE
-func waitHeartbeat(rf *Raft) {
+func (rf *Raft) waitHeartbeat() {
 	for true {
 		receivedHeartbeat := make(chan bool)
 
@@ -336,10 +348,14 @@ func (rf *Raft) startElection() {
 	args.Term = rf.currentTerm
 	args.CandidateId = rf.me
 	args.LastLogIndex = len(rf.log)
-	args.LastLogTerm = rf.log[len(rf.log)-1]
+	args.LastLogTerm = 0 //TA ERRADO
+	args.Used = true
+
+	reply := &RequestVoteReply{}
 
 	for i := 0; i < len(rf.peers); i++ {
-		rf.sendRequestVote(i, args, nil)
+		fmt.Println(rf.me, "send request to", i)
+		go rf.sendRequestVote(i, args, reply)
 	}
 }
 // FINISH CODE
@@ -347,14 +363,16 @@ func (rf *Raft) startElection() {
 // START CODE
 type HeartbeatArgs struct {
 	Term int
+	Used bool
 }
 
 type HeartbeatReply struct {
 	Term int
+	Used bool
 }
 
 func (rf *Raft) AppendEntries(args *HeartbeatArgs, reply *HeartbeatReply) {
-	if reply == nil {
+	if args.Used {
 		rf.receivedHeartbeat = true
 		rf.state = "follower"
 		rf.currentTerm = args.Term
@@ -365,13 +383,14 @@ func (rf *Raft) AppendEntries(args *HeartbeatArgs, reply *HeartbeatReply) {
 
 func (rf *Raft) sendAppendEntries() {
 	for rf.state == "leader" {
-
 		args := &HeartbeatArgs{}
+		reply := &HeartbeatReply{}
 		args.Term = rf.currentTerm
+		args.Used = true
 
 		for server := 0; server < len(rf.peers); server++ {
 			if server != rf.me {
-				rf.peers[server].Call("Raft.AppendEntries", args, nil)
+				rf.peers[server].Call("Raft.AppendEntries", args, reply)
 			}
 		}
 
