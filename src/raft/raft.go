@@ -211,13 +211,15 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 func (rf *Raft) ReceiveVote(args *ResponseVoteArgs, reply *ResponseVoteReply) {
 	fmt.Println(rf.me, "received response with vote granted", args.VoteGranted)
-	if args.VoteGranted {
-		rf.votesForMe++
-	}
-
-	if rf.votesForMe > (len(rf.peers) / 2) {
-		rf.state = "leader"
-		rf.sendAppendEntries()
+	if rf.state == "candidate" {
+		if args.VoteGranted {
+			rf.votesForMe++
+		}
+	
+		if rf.votesForMe > (len(rf.peers) / 2) {
+			rf.state = "leader"
+			rf.sendAppendEntries()
+		}
 	}
 }
 
@@ -324,7 +326,7 @@ func (rf *Raft) startElection() {
 	args.CandidateId = rf.me
 	args.LastLogIndex = len(rf.log)
 	args.LastLogTerm = 0 // MOCKED VALUE
-	
+
 	for i := 0; i < len(rf.peers); i++ {
 		fmt.Println(rf.me, "send request to", i)
 		go rf.sendRequestVote(i, args, reply)
