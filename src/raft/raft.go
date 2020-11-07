@@ -308,14 +308,16 @@ func (rf *Raft) waitHeartbeat() {
 
 		select {
 			case <- receivedHeartbeat: 
-				fmt.Println(rf.me, "Received heartbeat!")
-			case <- time.After(time.Duration((rand.Intn(400 - 200) + 200)) * time.Millisecond):
+				fmt.Println(rf.me, "received a heartbeat!")
+			case <- time.After(time.Duration((rand.Intn(300 - 150) + 150)) * time.Millisecond):
 				rf.startElection()
 		}
 	}
 }
 
 func (rf *Raft) startElection() {
+	finishedElection := make(chan bool)
+
 	rf.state = "candidate"
 	rf.currentTerm++
 	rf.votesForMe = 0
@@ -332,6 +334,26 @@ func (rf *Raft) startElection() {
 	for i := 0; i < len(rf.peers); i++ {
 		fmt.Println(rf.me, "send request to", i)
 		go rf.sendRequestVote(i, args, reply)
+	}
+
+	go func() {
+		for true {
+			if rf.state != "candidate" {
+				finishedElection <- true
+				break
+			}
+		}
+	}()
+
+	select {
+		case <- finishedElection: 
+			fmt.Println(rf.me, "finished its election!")
+		case <- time.After(time.Duration((rand.Intn(400 - 200) + 200)) * time.Millisecond):
+			fmt.Println(rf.me, "election's timed out!")
+			rf.state = "follower"
+			rf.votesForMe = 0
+			rf.votedFor = -1
+			rf.persist()
 	}
 }
 
